@@ -1,5 +1,5 @@
 name: "Lille Trafic: production deployment to AWS"
-run-name: Deploy to ${{ inputs.deploy_target }} by @${{ github.actor }}
+run-name: Deploy to production by @${{ github.actor }}
 on: push
 env:
   S3_BUCKET_NAME: "lilletrafic-coderepo-cf"

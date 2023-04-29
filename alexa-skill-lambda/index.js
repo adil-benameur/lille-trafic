@@ -37,38 +37,41 @@ const getLastSubwayStatus = async () => {
 }
 
 const getAllLinesDisruptions = (disruptions) => {
+    let speakOutput = ""
     if(disruptions['Disruptions']['M']['line:TRA:ME1']['L'].length === 0 && disruptions['Disruptions']['M']['line:TRA:ME2']['L'].length === 0)
-            speakOutput = "Bonjour, aucune perturbation n'est en cours sur les lignes de métro !";
-        else {
-            speakOutput = "Bonjour, "
-            if(disruptions['Disruptions']['M']['line:TRA:ME1']['L'].length > 0) {
-                const disruption_count = disruptions['Disruptions']['M']['line:TRA:ME1']['L'].length;
-                
-                speakOutput += `${disruption_count > 1 ? disruption_count + " perturabations sont " : disruption_count + " perturabation est "} perturbations en cours sur la ligne 1 du métro.`
-                speakOutput += disruptions['Disruptions']['M']['line:TRA:ME1']['L'].map(disp => disp['S'])
-            }
+        speakOutput = "Aucune perturbation n'est en cours sur les lignes de métro !";
+    else {
+        if(disruptions['Disruptions']['M']['line:TRA:ME1']['L'].length > 0) {
+            const disruption_count = disruptions['Disruptions']['M']['line:TRA:ME1']['L'].length;
             
-            if(disruptions['Disruptions']['M']['line:TRA:ME2']['L'].length > 0) {
-                const disruption_count = disruptions['Disruptions']['M']['line:TRA:ME1']['L'].length;
-                
-                speakOutput += `${disruption_count > 1 ? disruption_count + " perturabations sont " : disruption_count + " perturabation est "} perturbations en cours sur la ligne 2 du métro.`
-                speakOutput += disruptions['Disruptions']['M']['line:TRA:ME2']['L'].map(disp => disp['S'])
-            }
+            speakOutput += `${disruption_count > 1 ? disruption_count + " perturabations sont " : disruption_count + " perturabation est "} perturbations en cours sur la ligne 1 du métro.`
+            speakOutput += disruptions['Disruptions']['M']['line:TRA:ME1']['L'].map(disp => disp['S'])
         }
+        
+        if(disruptions['Disruptions']['M']['line:TRA:ME2']['L'].length > 0) {
+            const disruption_count = disruptions['Disruptions']['M']['line:TRA:ME1']['L'].length;
+            
+            speakOutput += `${disruption_count > 1 ? disruption_count + " perturabations sont " : disruption_count + " perturabation est "} perturbations en cours sur la ligne 2 du métro.`
+            speakOutput += disruptions['Disruptions']['M']['line:TRA:ME2']['L'].map(disp => disp['S'])
+        }
+    }
+    return speakOutput
 }
 
 
-const LaunchRequestHandler = {
+const deRequestHandler = {
     canHandle(handlerInput) {
         return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
     },
     async handle(handlerInput) {
         const disruptions = await getLastSubwayStatus()
         
-        let speakOutput = getAllLinesDisruptions(disruptions);
+        let speakOutput = "Bonjour, "
+        speakOutput += getAllLinesDisruptions(disruptions);
 
         return handlerInput.responseBuilder
             .speak(speakOutput)
+            .reprompt(speakOutput)
             .getResponse();
     }
 };
@@ -86,11 +89,10 @@ const SubwayStateIntentHandler = {
             const line_number = handlerInput['requestEnvelope']['request']['intent']['slots']['line_number']['slotValue']['value']
             
             if(disruptions['Disruptions']['M']['line:TRA:ME' + line_number]['L'].length === 0)
-                speakOutput = `Bonjour, aucunes perturbations n'est en cours sur la ligne de métro ${line_number} !`;
+                speakOutput = `Aucunes perturbations n'est en cours sur la ligne de métro ${line_number} !`;
             else {
                 const disruption_count = disruptions['Disruptions']['M']['line:TRA:ME' + line_number]['L'].length;
                 
-                speakOutput = "Bonjour, "
                 speakOutput += `${disruption_count > 1 ? disruption_count + " perturabations sont " : disruption_count + " perturabation est "} en cours sur la ligne ${line_number} du métro.`
                 speakOutput += disruptions['Disruptions']['M']['line:TRA:ME' + line_number]['L'].map(disp => disp['S'])
             }
@@ -168,25 +170,7 @@ const SessionEndedRequestHandler = {
         return handlerInput.responseBuilder.getResponse(); // notice we send an empty response
     }
 };
-/* *
- * The intent reflector is used for interaction model testing and debugging.
- * It will simply repeat the intent the user said. You can create custom handlers for your intents 
- * by defining them above, then also adding them to the request handler chain below 
- * */
-const IntentReflectorHandler = {
-    canHandle(handlerInput) {
-        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest';
-    },
-    handle(handlerInput) {
-        const intentName = Alexa.getIntentName(handlerInput.requestEnvelope);
-        const speakOutput = `You just triggered ${intentName}`;
 
-        return handlerInput.responseBuilder
-            .speak(speakOutput)
-            //.reprompt('add a reprompt if you want to keep the session open for the user to respond')
-            .getResponse();
-    }
-};
 /**
  * Generic error handling to capture any syntax or routing errors. If you receive an error
  * stating the request handler chain is not found, you have not implemented a handler for
@@ -219,8 +203,8 @@ exports.handler = Alexa.SkillBuilders.custom()
         HelpIntentHandler,
         CancelAndStopIntentHandler,
         FallbackIntentHandler,
-        SessionEndedRequestHandler,
-        IntentReflectorHandler)
+        SessionEndedRequestHandler
+        )
     .addErrorHandlers(
         ErrorHandler)
     .withCustomUserAgent('sample/hello-world/v1.2')
