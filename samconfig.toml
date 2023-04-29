@@ -1,0 +1,18 @@
+version = 0.1
+
+[default]
+[default.global]
+[default.global.parameters]
+stack_name = "lilletrafic-stack"
+
+[default.deploy.parameters]
+confirm_changeset = true
+s3_bucket = "lilletrafic-coderepo-cf"
+
+[default.sync.parameters]
+watch = true
+
+[prod]
+[prod.sync]
+[prod.sync.parameters]
+watch = false

@@ -1,0 +1,8 @@
+# Ignoring credential file
+**/.env
+
+# Ignoring debug and build file
+**/.aws-sam/
+**/.vscode/
+**/.ask
+**/node_modules

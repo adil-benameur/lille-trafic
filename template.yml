@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Lille Trafic stack
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  SubwayMonitorDB:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      KeySchema:
+        - AttributeName: RequestDatetime
+          KeyType: HASH
+      AttributeDefinitions:
+        - AttributeName: RequestDatetime
+          AttributeType: S
+      TableName: lilletrafic-subway_monitor_db
+      TimeToLiveSpecification:
+        AttributeName: ExpirationTime
+        Enabled: True
+      BillingMode: PAY_PER_REQUEST
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+
+  EveryMinutes: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Name: "lilletrafic-everyminutes"
+      Description: "EveryMinutes"
+      ScheduleExpression: "rate(1 minute)"
+      State: "ENABLED"
+      Targets: 
+        - Arn: !GetAtt SubwayMonitorLambda.Arn
+          Id: "TargetFunctionV1"
+  
+  PermissionForEventsToInvokeLambda: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: !Ref "SubwayMonitorLambda"
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: !GetAtt EveryMinutes.Arn
+
+  SubwayMonitorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+
+  SubwayMonitorLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: "lilletrafic-subway-monitor"
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      CodeUri: subway-monitor-lambda
+      Role: "arn:aws:iam::884459693376:role/lilletrafic-lambda-basic-execution-with-dynamodb"
+    Metadata:
+      BuildMethod: makefile
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+
+  LilleTraficAlexaSkillLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: "lilletrafic-alexa-skill"
+      Handler: index.handler
+      Runtime: nodejs18.x
+      CodeUri: ./alexa-skill-lambda
+      Role: "arn:aws:iam::884459693376:role/lilletrafic-lambda-basic-execution-with-dynamodb-readonly"
+      Events:
+        LilleTraficAlexaSkill:
+          Type: AlexaSkill
+          Properties:
+            SkillId: '{{resolve:ssm:lilletrafic-AlexaSkillArn:1}}'
+    Metadata:
+      BuildMethod: makefile
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+
+  LilleTraficAlexaSkillLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+
+Outputs:
+  SubwayMonitorLambdaArn:
+    Value: !GetAtt SubwayMonitorLambda.Arn
+  LilleTraficAlexaSkillLambda:
+    Value: !GetAtt LilleTraficAlexaSkillLambda.Arn
