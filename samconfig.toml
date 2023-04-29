@@ -8,6 +8,7 @@ stack_name = "lilletrafic-stack"
 [default.deploy.parameters]
 confirm_changeset = true
 s3_bucket = "lilletrafic-coderepo-cf"
+region = "eu-central-1"
 
 [default.sync.parameters]
 watch = true
