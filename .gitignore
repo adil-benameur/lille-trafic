@@ -6,3 +6,4 @@
 **/.vscode/
 **/.ask
 **/node_modules
+**/package-lock.json
