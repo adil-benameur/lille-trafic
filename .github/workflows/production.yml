@@ -60,4 +60,5 @@ jobs:
           # Run SAM Deploy
           sam deploy --template-file .aws-sam/build/template.yaml \
                      --s3-bucket $S3_BUCKET_NAME \
-                     --stack-name $STACK_NAME
+                     --stack-name $STACK_NAME \
+                     --parameter-overrides "LilleTraficAlexaSkillLambdaRole=${{ secrets.CLOUDFORMATIONPARAMETER_LILLETRAFICALEXASKILLLAMBDAROLE }} SubwayMonitorLambdaRole=${{ secrets.CLOUDFORMATIONPARAMETER_SUBWAYMONITORLAMBDAROLE }} LilleTraficAlexaSkillId=${{ secrets.CLOUDFORMATIONPARAMETER_ALEXASKILLARN }} NavitiaApiToken='${{ secrets.CLOUDFORMATIONPARAMETER_NAVITIAAPITOKEN }}'"

@@ -9,6 +9,7 @@ const date = require('date-and-time')
 const { DynamoDBClient, QueryCommand } = require("@aws-sdk/client-dynamodb");
 
 const client = new DynamoDBClient();
+const dynamodbTableName = process.env['DYNAMODB_TABLE_NAME'];
 
 const getLastSubwayStatus = async () => {
     let startDate = Date.now();
@@ -24,7 +25,7 @@ const getLastSubwayStatus = async () => {
             }
           },
           "KeyConditionExpression": "RequestDatetime = :v1",
-          "TableName": "lilletrafic-subway_monitor_db"
+          "TableName": dynamodbTableName
         };
       
         const command = new QueryCommand(input);

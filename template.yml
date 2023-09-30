@@ -1,6 +1,19 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: Lille Trafic stack
 Transform: AWS::Serverless-2016-10-31
+Parameters:
+  LilleTraficAlexaSkillLambdaRole:
+    Type: String
+    Description: Role for the execution of LilleTraficAlexaSkillLambda
+  SubwayMonitorLambdaRole:
+    Type: String
+    Description: Role for the execution of SubwayMonitorLambdaLambda
+  LilleTraficAlexaSkillId:
+    Type: String
+    Description: SkillId of LilleTraficAlexaSkill
+  NavitiaApiToken:
+    Type: String
+    Description: Auth token to access Navitia API
 Resources:
   SubwayMonitorDB:
     Type: AWS::DynamoDB::Table
@@ -52,7 +65,11 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.9
       CodeUri: subway-monitor-lambda
-      Role: "arn:aws:iam::884459693376:role/lilletrafic-lambda-basic-execution-with-dynamodb"
+      Environment:
+        Variables:
+          NAVITIA_API_TOKEN: !Ref NavitiaApiToken
+          DYNAMODB_TABLE_NAME: !Select [1, !Split ['/', !GetAtt SubwayMonitorDB.Arn]]
+      Role: !Ref SubwayMonitorLambdaRole
     Metadata:
       BuildMethod: makefile
     UpdateReplacePolicy: Delete
@@ -65,12 +82,15 @@ Resources:
       Handler: index.handler
       Runtime: nodejs18.x
       CodeUri: ./alexa-skill-lambda
-      Role: "arn:aws:iam::884459693376:role/lilletrafic-lambda-basic-execution-with-dynamodb-readonly"
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Select [1, !Split ['/', !GetAtt SubwayMonitorDB.Arn]]
+      Role: !Ref LilleTraficAlexaSkillLambdaRole
       Events:
         LilleTraficAlexaSkill:
           Type: AlexaSkill
           Properties:
-            SkillId: '{{resolve:ssm:lilletrafic-AlexaSkillArn:1}}'
+            SkillId: !Ref LilleTraficAlexaSkillId
     Metadata:
       BuildMethod: makefile
     UpdateReplacePolicy: Delete

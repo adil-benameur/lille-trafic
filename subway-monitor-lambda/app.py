@@ -6,12 +6,9 @@ from cerealbox.dynamo import as_dynamodb_json
 import time    
 
 dynamodb_client = boto3.client('dynamodb')
-table_name = 'lilletrafic-subway_monitor_db'
+table_name = os.environ['DYNAMODB_TABLE_NAME']
 
-ssm_client = boto3.client('ssm')
-parameter_name = "lilletrafic-subway-monitor-lambda-navitia-api-token"
-parameter = ssm_client.get_parameter(Name=parameter_name, WithDecryption=True)
-NAVITIA_API_TOKEN = parameter['Parameter']['Value']
+NAVITIA_API_TOKEN = os.environ['NAVITIA_API_TOKEN']
 
 base_url_API = 'https://api.navitia.io'
 headers = {
