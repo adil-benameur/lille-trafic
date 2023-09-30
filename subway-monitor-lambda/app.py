@@ -6,15 +6,15 @@ from cerealbox.dynamo import as_dynamodb_json
 import time    
 
 dynamodb_client = boto3.client('dynamodb')
-table_name = os.environ['DYNAMODB_TABLE_NAME']
 
+TABLE_NAME = os.environ['DYNAMODB_TABLE_NAME']
 NAVITIA_API_TOKEN = os.environ['NAVITIA_API_TOKEN']
 
-base_url_API = 'https://api.navitia.io'
 headers = {
     'Authorization': NAVITIA_API_TOKEN,
 }
 
+base_url_API = 'https://api.navitia.io'
 traffic_reports_url = "/v1/coverage/fr-npdc/traffic_reports"
 
 def lambda_handler(event, context):
@@ -64,7 +64,7 @@ def lambda_handler(event, context):
         'Disruptions': as_dynamodb_json(disruptions_per_line),
         'ExpirationTime': {'N': str(expiration_time)}
     }
-    dynamodb_client.put_item(TableName=table_name, Item=latest_state_item)
-    dynamodb_client.put_item(TableName=table_name, Item=item)
+    dynamodb_client.put_item(TableName=TABLE_NAME, Item=latest_state_item)
+    dynamodb_client.put_item(TableName=TABLE_NAME, Item=item)
 
     return item

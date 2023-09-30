@@ -4,12 +4,19 @@
  * session persistence, api calls, and more.
  * */
 const Alexa = require('ask-sdk-core');
-const date = require('date-and-time')
+const axios = require('axios');
 
 const { DynamoDBClient, QueryCommand } = require("@aws-sdk/client-dynamodb");
 
 const client = new DynamoDBClient();
+
 const dynamodbTableName = process.env['DYNAMODB_TABLE_NAME'];
+const navitiaApiToken = process.env['NAVITIA_API_TOKEN']
+
+const navitiaApi = axios.create({
+    baseURL: 'https://api.navitia.io/v1',
+})
+navitiaApi.defaults.headers.common['Authorization'] = navitiaApiToken;
 
 const getLastSubwayStatus = async () => {
     const input = {
@@ -94,6 +101,92 @@ const SubwayStateIntentHandler = {
             
         } else {
             speakOutput = getAllLinesDisruptions(disruptions)
+        }
+
+        return handlerInput.responseBuilder
+            .speak(speakOutput)
+            .getResponse();
+    }
+};
+
+const JourneyDurationIntentHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'JourneyDuration';
+    },
+    async handle(handlerInput) {
+        let speakOutput;
+
+        try {
+            var isGeoSupported = handlerInput?.requestEnvelope?.context?.System?.device?.supportedInterfaces?.Geolocation;
+            var geoObject = handlerInput?.requestEnvelope?.context?.Geolocation;
+            if (isGeoSupported) {
+               if (geoObject && geoObject.coordinate) {
+                  if(handlerInput?.requestEnvelope?.request?.intent?.slots && 
+                    "place" in handlerInput['requestEnvelope']['request']['intent']['slots']) {
+                    const place = handlerInput['requestEnvelope']['request']['intent']['slots']['place']['value']
+                    
+                    const stopsResponse = await navitiaApi(`/coverage/fr-npdc/pt_objects?disable_geojson=true&q=${encodeURI(place)}`);
+    
+                    let to = null;
+                    if(stopsResponse.data['pt_objects'].length > 0) {
+                        to = stopsResponse.data['pt_objects'][0]['id'];
+                    } else {
+                        const placesResponse = await navitiaApi(`/coverage/fr-npdc/places?disable_geojson=true&q=${encodeURI(place)}`);
+        
+                        if(placesResponse.data['places'].length > 0) {
+                            to = placesResponse.data['places'][0]['id'];
+                        }
+                    }
+    
+                    if(to != null) {
+                        try {
+                            const journeyResponse = await navitiaApi(`/coverage/fr-npdc/journeys?disable_geojson=true&from=${geoObject.coordinate.longitudeInDegrees};${geoObject.coordinate.latitudeInDegrees}&to=${to}&first_section_mode[]=walking&last_section_mode[]=walking&datetime_represents=departure&forbidden_uris[]=physical_mode:Bus`);
+                        
+                            if(journeyResponse.data['journeys'].length > 0) {
+                                const journey = journeyResponse.data['journeys'][0];
+                                const minDurationInSeconds = journey['duration'];
+            
+                                speakOutput = `Votre temps de trajet est estimé à ${Math.round(minDurationInSeconds / 60)} minutes`
+                                
+                                let count = 0;
+                                journey['sections'].forEach(section => {
+                                    if('display_informations' in section) {
+                                        if(section['display_informations']['label'] === 'M1') {
+                                            if(count > 0)
+                                                speakOutput += " puis";
+                                            speakOutput += ` en emprumtant la ligne 1 de l'arrêt ${section['from']['stop_point']['name']} à l'arrêt ${section['to']['stop_point']['name']}`
+
+                                            count++;
+                                        }
+
+                                        if(section['display_informations']['label'] === 'M2') {
+                                            if(count > 0)
+                                                speakOutput += " puis";
+                                            speakOutput += ` en emprumtant la ligne 2 de l'arrêt ${section['from']['stop_point']['name']} à l'arrêt ${section['to']['stop_point']['name']}`
+
+                                            count++;
+                                        }
+                                    }
+                                });
+                                speakOutput += ".";
+                            }
+                        } catch(e) {
+                            speakOutput = "Il semblerait que votre localisation soit trop éloignée pour calculer un trajet."
+                        }
+                    } else {
+                        speakOutput = `Désole, je n'ai pas réussi à calculer votre temps de trajet.`
+                    }
+                } else {
+                    speakOutput = "Je n'ai pas compris. Pouvez-vous répéter ?"
+                }
+               }
+            } else {
+                speakOutput = "Il semblerait que je n'ai pas accès à votre géolocalisation. Vous pouvez autoriser l'accès à votre géolocalisation dans les paramètres de ce skill."
+            }
+        } catch(e) {
+            console.log(e);
+            speakOutput = "L'erreur suivante s'est produite : " + e;
         }
 
         return handlerInput.responseBuilder
@@ -195,6 +288,7 @@ exports.handler = Alexa.SkillBuilders.custom()
     .addRequestHandlers(
         LaunchRequestHandler,
         SubwayStateIntentHandler,
+        JourneyDurationIntentHandler,
         HelpIntentHandler,
         CancelAndStopIntentHandler,
         FallbackIntentHandler,
@@ -202,5 +296,4 @@ exports.handler = Alexa.SkillBuilders.custom()
         )
     .addErrorHandlers(
         ErrorHandler)
-    .withCustomUserAgent('sample/hello-world/v1.2')
     .lambda();

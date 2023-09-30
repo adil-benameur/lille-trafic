@@ -84,6 +84,7 @@ Resources:
       CodeUri: ./alexa-skill-lambda
       Environment:
         Variables:
+          NAVITIA_API_TOKEN: !Ref NavitiaApiToken
           DYNAMODB_TABLE_NAME: !Select [1, !Split ['/', !GetAtt SubwayMonitorDB.Arn]]
       Role: !Ref LilleTraficAlexaSkillLambdaRole
       Events:
