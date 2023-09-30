@@ -12,29 +12,20 @@ const client = new DynamoDBClient();
 const dynamodbTableName = process.env['DYNAMODB_TABLE_NAME'];
 
 const getLastSubwayStatus = async () => {
-    let startDate = Date.now();
-    while(true) {
-        startDate -= 1000 * 60
-        
-        const date_formated = date.format(new Date(startDate), "YYYYMMDDTHHmm00")
-      
-        const input = {
-          "ExpressionAttributeValues": {
-            ":v1": {
-              "S": date_formated
-            }
-          },
-          "KeyConditionExpression": "RequestDatetime = :v1",
-          "TableName": dynamodbTableName
-        };
-      
-        const command = new QueryCommand(input);
-        const result = await client.send(command)
-    
-        if(result.Items.length > 0) {
-            return result.Items[0]
+    const input = {
+        "ExpressionAttributeValues": {
+        ":v1": {
+            "S": "latest_state"
         }
-    }
+        },
+        "KeyConditionExpression": "RequestDatetime = :v1",
+        "TableName": dynamodbTableName
+    };
+    
+    const command = new QueryCommand(input);
+    const result = await client.send(command);
+    if(result.Items.length > 0)
+        return result.Items[0];
 }
 
 const getAllLinesDisruptions = (disruptions) => {
@@ -68,7 +59,10 @@ const LaunchRequestHandler = {
         const disruptions = await getLastSubwayStatus()
         
         let speakOutput = "Bonjour, "
-        speakOutput += getAllLinesDisruptions(disruptions);
+        if(disruptions)
+            speakOutput += getAllLinesDisruptions(disruptions);
+        else
+            speakOutput += "le service Lille Trafic est actuellement indisponible."
 
         return handlerInput.responseBuilder
             .speak(speakOutput)

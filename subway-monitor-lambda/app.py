@@ -57,6 +57,14 @@ def lambda_handler(event, context):
         'Disruptions': as_dynamodb_json(disruptions_per_line),
         'ExpirationTime': {'N': str(expiration_time)}
     }
+
+    latest_state_item = {
+        'RequestId': {'S': context.aws_request_id},
+        'RequestDatetime': {'S': 'latest_state'},
+        'Disruptions': as_dynamodb_json(disruptions_per_line),
+        'ExpirationTime': {'N': str(expiration_time)}
+    }
+    dynamodb_client.put_item(TableName=table_name, Item=latest_state_item)
     dynamodb_client.put_item(TableName=table_name, Item=item)
 
     return item
