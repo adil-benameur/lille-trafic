@@ -5,6 +5,7 @@
  * */
 const Alexa = require('ask-sdk-core');
 const axios = require('axios');
+const util = require('util')
 
 const { DynamoDBClient, QueryCommand } = require("@aws-sdk/client-dynamodb");
 
@@ -21,35 +22,35 @@ navitiaApi.defaults.headers.common['Authorization'] = navitiaApiToken;
 const getLastSubwayStatus = async () => {
     const input = {
         "ExpressionAttributeValues": {
-        ":v1": {
-            "S": "latest_state"
-        }
+            ":v1": {
+                "S": "latest_state"
+            }
         },
         "KeyConditionExpression": "RequestDatetime = :v1",
         "TableName": dynamodbTableName
     };
-    
+
     const command = new QueryCommand(input);
     const result = await client.send(command);
-    if(result.Items.length > 0)
+    if (result.Items.length > 0)
         return result.Items[0];
 }
 
 const getAllLinesDisruptions = (disruptions) => {
     let speakOutput = ""
-    if(disruptions['Disruptions']['M']['line:TRA:ME1']['L'].length === 0 && disruptions['Disruptions']['M']['line:TRA:ME2']['L'].length === 0)
+    if (disruptions['Disruptions']['M']['line:TRA:ME1']['L'].length === 0 && disruptions['Disruptions']['M']['line:TRA:ME2']['L'].length === 0)
         speakOutput = "Aucune perturbation n'est en cours sur les lignes de métro !";
     else {
-        if(disruptions['Disruptions']['M']['line:TRA:ME1']['L'].length > 0) {
+        if (disruptions['Disruptions']['M']['line:TRA:ME1']['L'].length > 0) {
             const disruption_count = disruptions['Disruptions']['M']['line:TRA:ME1']['L'].length;
-            
+
             speakOutput += `${disruption_count > 1 ? disruption_count + " perturabations sont " : disruption_count + " perturabation est "} perturbations en cours sur la ligne 1 du métro.`
             speakOutput += disruptions['Disruptions']['M']['line:TRA:ME1']['L'].map(disp => disp['S'])
         }
-        
-        if(disruptions['Disruptions']['M']['line:TRA:ME2']['L'].length > 0) {
+
+        if (disruptions['Disruptions']['M']['line:TRA:ME2']['L'].length > 0) {
             const disruption_count = disruptions['Disruptions']['M']['line:TRA:ME1']['L'].length;
-            
+
             speakOutput += `${disruption_count > 1 ? disruption_count + " perturabations sont " : disruption_count + " perturabation est "} perturbations en cours sur la ligne 2 du métro.`
             speakOutput += disruptions['Disruptions']['M']['line:TRA:ME2']['L'].map(disp => disp['S'])
         }
@@ -57,23 +58,38 @@ const getAllLinesDisruptions = (disruptions) => {
     return speakOutput
 }
 
+function lowerFirstLetter(string) {
+    return string.charAt(0).toLowerCase() + string.slice(1);
+}
 
 const LaunchRequestHandler = {
     canHandle(handlerInput) {
         return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
     },
     async handle(handlerInput) {
-        const disruptions = await getLastSubwayStatus()
-        
-        let speakOutput = "Bonjour, "
-        if(disruptions)
-            speakOutput += getAllLinesDisruptions(disruptions);
-        else
-            speakOutput += "le service Lille Trafic est actuellement indisponible."
+        console.log(handlerInput);
+        let speakOutput;
+        try {
+            const disruptions = await getLastSubwayStatus()
+
+            speakOutput = "Bonjour, ici LilleTrafic. "
+            if (disruptions) {
+                speakOutput += lowerFirstLetter(getAllLinesDisruptions(disruptions));
+                speakOutput += ' Vous pouvez me demander l\'état de fonctionnement du métro ou bien le temps de trajet jusqu\'à une destination.';
+
+                return handlerInput.responseBuilder
+                    .speak(speakOutput)
+                    .reprompt(speakOutput)
+                    .getResponse();
+            }
+        } catch (e) {
+            console.error(e);
+        }
+
+        speakOutput = "Le service LilleTrafic est actuellement indisponible.";
 
         return handlerInput.responseBuilder
             .speak(speakOutput)
-            .reprompt(speakOutput)
             .getResponse();
     }
 };
@@ -84,27 +100,34 @@ const SubwayStateIntentHandler = {
             && Alexa.getIntentName(handlerInput.requestEnvelope) === 'SubwayState';
     },
     async handle(handlerInput) {
-        const disruptions = await getLastSubwayStatus()
-    
+        console.log(handlerInput);
         let speakOutput;
-        if(handlerInput?.requestEnvelope?.request?.intent?.slots && "line_number" in handlerInput['requestEnvelope']['request']['intent']['slots']) {
-            const line_number = handlerInput['requestEnvelope']['request']['intent']['slots']['line_number']['slotValue']['value']
-            
-            if(disruptions['Disruptions']['M']['line:TRA:ME' + line_number]['L'].length === 0)
-                speakOutput = `Aucunes perturbations n'est en cours sur la ligne de métro ${line_number} !`;
-            else {
-                const disruption_count = disruptions['Disruptions']['M']['line:TRA:ME' + line_number]['L'].length;
-                
-                speakOutput += `${disruption_count > 1 ? disruption_count + " perturabations sont " : disruption_count + " perturabation est "} en cours sur la ligne ${line_number} du métro.`
-                speakOutput += disruptions['Disruptions']['M']['line:TRA:ME' + line_number]['L'].map(disp => disp['S'])
+        try {
+            const disruptions = await getLastSubwayStatus()
+
+            if (handlerInput?.requestEnvelope?.request?.intent?.slots && "line_number" in handlerInput?.requestEnvelope?.request?.intent?.slots && handlerInput?.requestEnvelope?.request?.intent?.slots?.line_number?.slotValue) {
+                const line_number = handlerInput['requestEnvelope']['request']['intent']['slots']['line_number']['slotValue']['value']
+
+                if (disruptions['Disruptions']['M']['line:TRA:ME' + line_number]['L'].length === 0)
+                    speakOutput = `Aucunes perturbations n'est en cours sur la ligne de métro ${line_number} !`;
+                else {
+                    const disruption_count = disruptions['Disruptions']['M']['line:TRA:ME' + line_number]['L'].length;
+
+                    speakOutput += `${disruption_count > 1 ? disruption_count + " perturabations sont " : disruption_count + " perturabation est "} en cours sur la ligne ${line_number} du métro.`
+                    speakOutput += disruptions['Disruptions']['M']['line:TRA:ME' + line_number]['L'].map(disp => disp['S'])
+                }
+
+            } else {
+                speakOutput = getAllLinesDisruptions(disruptions)
             }
-            
-        } else {
-            speakOutput = getAllLinesDisruptions(disruptions)
+        } catch (e) {
+            console.error(e);
+            speakOutput = "Une erreur s'est produite. Pouvez-vous répéter ?";
         }
 
         return handlerInput.responseBuilder
             .speak(speakOutput)
+            .reprompt(speakOutput)
             .getResponse();
     }
 };
@@ -118,50 +141,56 @@ const JourneyDurationIntentHandler = {
         let speakOutput;
 
         try {
+            console.log(handlerInput['requestEnvelope']['request']['intent']);
+
             var isGeoSupported = handlerInput?.requestEnvelope?.context?.System?.device?.supportedInterfaces?.Geolocation;
             var geoObject = handlerInput?.requestEnvelope?.context?.Geolocation;
-            if (isGeoSupported) {
-               if (geoObject && geoObject.coordinate) {
-                  if(handlerInput?.requestEnvelope?.request?.intent?.slots && 
-                    "place" in handlerInput['requestEnvelope']['request']['intent']['slots']) {
+            if (isGeoSupported && geoObject && geoObject.coordinate) {
+                if (handlerInput?.requestEnvelope?.request?.intent?.slots &&
+                    "place" in handlerInput?.requestEnvelope?.request?.intent?.slots &&
+                    handlerInput?.requestEnvelope?.request?.intent?.slots?.place?.value) {
                     const place = handlerInput['requestEnvelope']['request']['intent']['slots']['place']['value']
-                    
-                    const stopsResponse = await navitiaApi(`/coverage/fr-npdc/pt_objects?disable_geojson=true&q=${encodeURI(place)}`);
-    
+
+                    const stopsResponse = await navitiaApi(`/coverage/fr-npdc/pt_objects?disable_geojson=true&q=${encodeURI(place).replace("quatre", "4") // fix for 4 Cantons station 
+                        }`);
+
                     let to = null;
-                    if(stopsResponse.data['pt_objects'].length > 0) {
+                    console.log(util.inspect(stopsResponse))
+                    if (stopsResponse.data['pt_objects']?.length > 0) {
                         to = stopsResponse.data['pt_objects'][0]['id'];
                     } else {
                         const placesResponse = await navitiaApi(`/coverage/fr-npdc/places?disable_geojson=true&q=${encodeURI(place)}`);
-        
-                        if(placesResponse.data['places'].length > 0) {
+
+                        console.log(util.inspect(placesResponse.data))
+                        if (placesResponse.data['places']?.length > 0) {
                             to = placesResponse.data['places'][0]['id'];
                         }
                     }
-    
-                    if(to != null) {
+
+                    if (to != null) {
                         try {
                             const journeyResponse = await navitiaApi(`/coverage/fr-npdc/journeys?disable_geojson=true&from=${geoObject.coordinate.longitudeInDegrees};${geoObject.coordinate.latitudeInDegrees}&to=${to}&first_section_mode[]=walking&last_section_mode[]=walking&datetime_represents=departure&forbidden_uris[]=physical_mode:Bus`);
-                        
-                            if(journeyResponse.data['journeys'].length > 0) {
+
+                            console.log(util.inspect(journeyResponse.data))
+                            if (journeyResponse.data['journeys']?.length > 0) {
                                 const journey = journeyResponse.data['journeys'][0];
                                 const minDurationInSeconds = journey['duration'];
-            
+
                                 speakOutput = `Votre temps de trajet est estimé à ${Math.round(minDurationInSeconds / 60)} minutes`
-                                
+
                                 let count = 0;
                                 journey['sections'].forEach(section => {
-                                    if('display_informations' in section) {
-                                        if(section['display_informations']['label'] === 'M1') {
-                                            if(count > 0)
+                                    if ('display_informations' in section) {
+                                        if (section['display_informations']['label'] === 'M1') {
+                                            if (count > 0)
                                                 speakOutput += " puis";
                                             speakOutput += ` en emprumtant la ligne 1 de l'arrêt ${section['from']['stop_point']['name']} à l'arrêt ${section['to']['stop_point']['name']}`
 
                                             count++;
                                         }
 
-                                        if(section['display_informations']['label'] === 'M2') {
-                                            if(count > 0)
+                                        if (section['display_informations']['label'] === 'M2') {
+                                            if (count > 0)
                                                 speakOutput += " puis";
                                             speakOutput += ` en emprumtant la ligne 2 de l'arrêt ${section['from']['stop_point']['name']} à l'arrêt ${section['to']['stop_point']['name']}`
 
@@ -171,26 +200,32 @@ const JourneyDurationIntentHandler = {
                                 });
                                 speakOutput += ".";
                             }
-                        } catch(e) {
+                        } catch (e) {
                             speakOutput = "Il semblerait que votre localisation soit trop éloignée pour calculer un trajet."
                         }
                     } else {
-                        speakOutput = `Désole, je n'ai pas réussi à calculer votre temps de trajet.`
+                        speakOutput = `Désole, je n'ai pas réussi localiser votre destination.`
                     }
                 } else {
                     speakOutput = "Je n'ai pas compris. Pouvez-vous répéter ?"
                 }
-               }
             } else {
-                speakOutput = "Il semblerait que je n'ai pas accès à votre géolocalisation. Vous pouvez autoriser l'accès à votre géolocalisation dans les paramètres de ce skill."
+                speakOutput = "LilleTrafic souhaite utiliser votre position. Pour activer le partage de position, veuillez accéder à votre application Alexa et en suivre les instructions."
+
+                console.log("speakOutput", speakOutput);
+                return handlerInput.responseBuilder
+                    .speak(speakOutput)
+                    .withAskForPermissionsConsentCard(['alexa::devices:all:geolocation:read'])
+                    .getResponse();
             }
-        } catch(e) {
-            console.log(e);
-            speakOutput = "L'erreur suivante s'est produite : " + e;
+        } catch (e) {
+            console.error(e);
+            speakOutput = "Une erreur s'est produite. Pouvez-vous répéter ?";
         }
 
         return handlerInput.responseBuilder
             .speak(speakOutput)
+            .reprompt(speakOutput)
             .getResponse();
     }
 };
@@ -201,7 +236,8 @@ const HelpIntentHandler = {
             && Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.HelpIntent';
     },
     handle(handlerInput) {
-        const speakOutput = 'You can say hello to me! How can I help?';
+        console.log(handlerInput);
+        const speakOutput = 'Vous pouvez me demander l\'état de fonctionnement du métro ou bien le temps de trajet jusqu\'à une destination. Comment puis-je vous aider ?';
 
         return handlerInput.responseBuilder
             .speak(speakOutput)
@@ -217,6 +253,7 @@ const CancelAndStopIntentHandler = {
                 || Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.StopIntent');
     },
     handle(handlerInput) {
+        console.log(handlerInput);
         const speakOutput = 'Au revoir !';
 
         return handlerInput.responseBuilder
@@ -235,7 +272,7 @@ const FallbackIntentHandler = {
             && Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.FallbackIntent';
     },
     handle(handlerInput) {
-        const speakOutput = 'Sorry, I don\'t know about that. Please try again.';
+        const speakOutput = 'Désole, je n\'ai pas compris. Pouvez-vous répéter ?';
 
         return handlerInput.responseBuilder
             .speak(speakOutput)
@@ -255,6 +292,7 @@ const SessionEndedRequestHandler = {
     handle(handlerInput) {
         console.log(`~~~~ Session ended: ${JSON.stringify(handlerInput.requestEnvelope)}`);
         // Any cleanup logic goes here.
+
         return handlerInput.responseBuilder.getResponse(); // notice we send an empty response
     }
 };
@@ -269,7 +307,7 @@ const ErrorHandler = {
         return true;
     },
     handle(handlerInput, error) {
-        const speakOutput = "Une erreur s'est produite";
+        const speakOutput = "Une erreur s'est produite.";
         console.log(`~~~~ Error handled: ${JSON.stringify(error)}`);
 
         return handlerInput.responseBuilder
@@ -293,7 +331,7 @@ exports.handler = Alexa.SkillBuilders.custom()
         CancelAndStopIntentHandler,
         FallbackIntentHandler,
         SessionEndedRequestHandler
-        )
+    )
     .addErrorHandlers(
         ErrorHandler)
     .lambda();
