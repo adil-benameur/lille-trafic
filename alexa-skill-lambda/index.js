@@ -74,7 +74,7 @@ const LaunchRequestHandler = {
 
             speakOutput = "Bonjour, ici LilleTrafic. "
             if (disruptions) {
-                speakOutput += lowerFirstLetter(getAllLinesDisruptions(disruptions));
+                speakOutput += getAllLinesDisruptions(disruptions);
                 speakOutput += ' Vous pouvez me demander l\'état de fonctionnement du métro ou bien le temps de trajet jusqu\'à une destination.';
 
                 return handlerInput.responseBuilder
@@ -109,7 +109,7 @@ const SubwayStateIntentHandler = {
                 const line_number = handlerInput['requestEnvelope']['request']['intent']['slots']['line_number']['slotValue']['value']
 
                 if (disruptions['Disruptions']['M']['line:TRA:ME' + line_number]['L'].length === 0)
-                    speakOutput = `Aucunes perturbations n'est en cours sur la ligne de métro ${line_number} !`;
+                    speakOutput = `Aucune perturbation n'est en cours sur la ligne de métro ${line_number} !`;
                 else {
                     const disruption_count = disruptions['Disruptions']['M']['line:TRA:ME' + line_number]['L'].length;
 
